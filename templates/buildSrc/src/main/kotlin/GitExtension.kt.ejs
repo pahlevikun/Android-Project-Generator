@@ -1,0 +1,18 @@
+package <%= packageName %>.plugin.extension
+
+import org.gradle.api.Project
+
+object GitExtension {
+    fun shortCommit(project: Project): String {
+        return run("git rev-parse --short HEAD", project)
+    }
+    private fun run(cmd: String, project: Project): String {
+        return try {
+            val parts = cmd.split(" ")
+            val proc = ProcessBuilder(parts).directory(project.projectDir).start()
+            proc.inputStream.bufferedReader().readText().trim()
+        } catch (e: Exception) {
+            ""
+        }
+    }
+}

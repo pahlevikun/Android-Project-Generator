@@ -1,3 +1,9 @@
+<% if (useFirebase) { %>import com.google.firebase.appdistribution.gradle.firebaseAppDistribution<% } %>
+import <%= packageName %>.plugin.properties.AppProperties
+import <%= packageName %>.plugin.extension.ArtifactNameManipulator
+import com.project.starter.easylauncher.filter.ChromeLikeFilter
+import com.project.starter.easylauncher.filter.ColorRibbonFilter
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -7,21 +13,29 @@ plugins {
     <% if (useFirebase) { %>
     alias(libs.plugins.google.services)
     alias(libs.plugins.firebase.crashlytics)
+    alias(libs.plugins.firebase.appdistribution)
     <% } %>
     alias(libs.plugins.easylauncher)
 }
 
+val appProperties = AppProperties.getInstance(project)
+val artifactNameManipulator = ArtifactNameManipulator(project)
+
 android {
-    namespace = "<%= packageName %>"
-    compileSdk = 35
+    namespace = appProperties.applicationId
+    compileSdk = appProperties.compileSdk
 
     defaultConfig {
-        applicationId = "<%= packageName %>"
-        minSdk = 24
-        targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        applicationId = appProperties.applicationId
+        minSdk = appProperties.minSdk
+        targetSdk = appProperties.targetSdk
+        versionCode = appProperties.appVersionCode
+        versionName = appProperties.appVersionName
 
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        vectorDrawables {
+            useSupportLibrary = true
+        }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
@@ -53,16 +67,16 @@ android {
         }
     }
 
-    flavorDimensions += "<%= flavorDimension %>"
+    flavorDimensions += appProperties.DIMENSION
     productFlavors {
         <% flavors.forEach(function(flavor) { %>
         create("<%= flavor %>") {
-            dimension = "<%= flavorDimension %>"
+            dimension = appProperties.DIMENSION
             <% if (flavor !== 'production') { %>
             applicationIdSuffix = ".<%= flavor %>"
-            resValue("string", "app_name", "<%= appName %> (<%= flavor.charAt(0).toUpperCase() + flavor.slice(1) %>)")
+            resValue("string", "app_name", appProperties.appName + " (<%= flavor.charAt(0).toUpperCase() + flavor.slice(1) %>)")
             <% } else { %>
-            resValue("string", "app_name", "<%= appName %>")
+            resValue("string", "app_name", appProperties.appName)
             <% } %>
         }
         <% }) %>
@@ -70,14 +84,23 @@ android {
 }
 
 easylauncher {
+    variants {
+        <% (disableRibbonFlavors || []).forEach(function(flavor) { %>
+        <% (disableRibbonVariants || []).forEach(function(variant) { %>
+        create("<%= flavor %><%= variant.charAt(0).toUpperCase() + variant.slice(1) %>") {
+            enable(false)
+        }
+        <% }) %>
+        <% }) %>
+    }
     buildTypes {
         create("debug") {
             enable(true)
             filters(
-                com.project.starter.easylauncher.filter.ChromeLikeFilter(
+                ChromeLikeFilter(
                     label = "DEBUG",
                     ribbonColor = "#FF0000",
-                    gravity = com.project.starter.easylauncher.filter.ChromeLikeFilter.Gravity.BOTTOM,
+                    gravity = ChromeLikeFilter.Gravity.BOTTOM,
                     textSizeRatio = 0.13f
                 )
             )
@@ -88,15 +111,56 @@ easylauncher {
         create("<%= flavor %>") {
             enable(true)
             filters(
-                com.project.starter.easylauncher.filter.ColorRibbonFilter(
+                ColorRibbonFilter(
                     label = "<%= flavor %>",
                     ribbonColor = "#00a82a",
-                    gravity = com.project.starter.easylauncher.filter.ColorRibbonFilter.Gravity.TOP,
+                    gravity = ColorRibbonFilter.Gravity.TOP,
                     textSizeRatio = 0.1f
                 )
             )
         }
         <% }) %>
+    }
+}
+
+android {
+    buildTypes {
+        release {
+            <% if (useFirebase) { %>
+            firebaseAppDistribution {
+                artifactType = "AAB"
+                groups = appProperties.firebaseTesterGroups
+                serviceCredentialsFile = appProperties.firebaseServiceCredentials
+                releaseNotesFile = rootProject.file("app_distribution_notes.txt").absolutePath
+            }
+            <% } %>
+            isDebuggable = appProperties.isReleaseDebuggable
+        }
+        debug {
+            <% if (useFirebase) { %>
+            firebaseAppDistribution {
+                artifactType = "APK"
+                groups = appProperties.firebaseTesterGroups
+                serviceCredentialsFile = appProperties.firebaseServiceCredentials
+                releaseNotesFile = rootProject.file("app_distribution_notes.txt").absolutePath
+            }
+            <% } %>
+        }
+    }
+}
+
+android {
+    applicationVariants.configureEach {
+        val variantName = this.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        tasks.register("buildArtifact${variantName}") {
+            dependsOn("clean")
+            dependsOn("assemble${variantName}")
+            dependsOn("bundle${variantName}")
+        }
+        tasks.register("distribute${variantName}") {
+            dependsOn("appDistributionUpload${variantName}")
+        }
+        artifactNameManipulator.apply(this)
     }
 }
 

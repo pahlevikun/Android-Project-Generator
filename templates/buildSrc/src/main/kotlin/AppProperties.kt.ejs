@@ -1,0 +1,26 @@
+package <%= packageName %>.plugin.properties
+
+import org.gradle.api.Project
+import <%= packageName %>.plugin.SingletonHolder
+
+class AppProperties private constructor(private val project: Project) {
+    val applicationId: String = project.findProperty("APPLICATION_ID") as String? ?: "<%= packageName %>"
+    val appName: String = project.findProperty("APP_NAME") as String? ?: "<%= appName %>"
+    val compileSdk: Int = (project.findProperty("COMPILE_SDK") as String?)?.toInt() ?: 35
+    val targetSdk: Int = (project.findProperty("TARGET_SDK") as String?)?.toInt() ?: 35
+    val minSdk: Int = (project.findProperty("MIN_SDK") as String?)?.toInt() ?: 24
+    val appVersionName: String = project.findProperty("APP_VERSION_NAME") as String? ?: "1.0"
+    val appVersionCode: Int = (project.findProperty("APP_VERSION_CODE") as String?)?.toInt() ?: 1
+    val keystoreFile: String = project.findProperty("KEYSTORE") as String? ?: "release.jks"
+    val keystorePassword: String = project.findProperty("KEYSTORE_PASSWORD") as String? ?: ""
+    val keyAlias: String = project.findProperty("KEY_ALIAS") as String? ?: ""
+    val keyPassword: String = project.findProperty("KEY_PASSWORD") as String? ?: ""
+    val firebaseServiceCredentials: String = project.findProperty("FIREBASE_SERVICE_CREDENTIALS") as String? ?: "firebase-service-account.json"
+    val firebaseTesterGroups: String = project.findProperty("FIREBASE_TESTER_GROUPS") as String? ?: "android-qa-and-tester"
+    val DIMENSION: String = project.findProperty("FLAVOR_DIMENSION") as String? ?: "environment"
+    val FLAVOR_STAGING: String = project.findProperty("FLAVOR_STAGING") as String? ?: "staging"
+    val FLAVOR_PRODUCTION: String = project.findProperty("FLAVOR_PRODUCTION") as String? ?: "production"
+    val isReleaseDebuggable: Boolean = (project.findProperty("${applicationId}.build.debuggable.release") as String?)?.toBoolean() ?: false
+
+    companion object : SingletonHolder<AppProperties, Project>(::AppProperties)
+}

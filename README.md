@@ -56,6 +56,8 @@ android-generator <packageName> <appName> [options]
 - `--no-firebase` Skip Firebase dependencies
 - `--flavors <list>` Comma-separated product flavors, default `staging,production`
 - `--flavor-dimension <name>` Flavor dimension name, default `environment`
+- `--disable-ribbon-flavors <list>` Flavors to disable EasyLauncher ribbon, default `production`
+- `--disable-ribbon-variants <list>` Variants to disable EasyLauncher ribbon, default `release`
   
 Notes:
 - If `--firebase`/`--no-firebase` isn’t provided, the tool may prompt interactively.
@@ -71,6 +73,12 @@ android-generator com.example.myapp MyApp --firebase
 
 # Custom flavors
 android-generator com.example.myapp MyApp --flavors dev,staging,prod --flavor-dimension env
+
+# Disable ribbons for productionRelease only (default behavior)
+android-generator com.example.myapp MyApp --firebase --disable-ribbon-flavors production --disable-ribbon-variants release
+
+# Disable ribbons for multiple flavors/variants
+android-generator com.example.myapp MyApp --disable-ribbon-flavors staging,production --disable-ribbon-variants debug,release
 ```
 
 ## Features
@@ -79,6 +87,8 @@ android-generator com.example.myapp MyApp --flavors dev,staging,prod --flavor-di
 - **Modern Stack:** Kotlin 2.0, Compose, Hilt, Coroutines.
 - **Configurable:** Optional Firebase integration.
 - **Ready-to-Run:** Generates a buildable project with `gradlew` wrapper.
+- **BuildSrc & AppProperties:** Generates buildSrc with `AppProperties`, `GitExtension`, `SingletonHolder`, and `ArtifactNameManipulator` to centralize configuration and artifact tasks.
+- **Firebase App Distribution:** When `--firebase` is used, applies Crashlytics and App Distribution plugins, includes release notes file, and wires basic upload tasks.
 
 ## Generated Structure
 
@@ -107,6 +117,30 @@ cd MyApp
 ```
 If you enabled Firebase, remember to add your `google-services.json` into `app/`.
 
+### Firebase release notes
+- The generator includes `app_distribution_notes.txt` in the project root.
+- App Distribution uses this file for both `release` and `debug` uploads.
+- Update the contents before distributing builds.
+
+### Flavor-based google-services.json
+- If flavors are present, the generator creates placeholder `google-services.json` in:
+  - `app/src/production/google-services.json` (base package)
+  - `app/src/<flavor>/google-services.json` (package with flavor suffix)
+- Replace these placeholders with your real Firebase configuration files per flavor.
+
+### BuildSrc overview
+- `buildSrc/src/main/kotlin/<package>/plugin/properties/AppProperties.kt`
+  - Reads values from `gradle.properties` (application ID, SDK versions, app name, keystore, Firebase credentials, flavor dimension).
+- `buildSrc/src/main/kotlin/<package>/plugin/extension/GitExtension.kt`
+  - Provides utilities like short commit retrieval.
+- `buildSrc/src/main/kotlin/<package>/plugin/extension/ArtifactNameManipulator.kt`
+  - Hook point for customizing artifact naming per variant.
+- `buildSrc/src/main/kotlin/<package>/plugin/SingletonHolder.kt`
+  - Utility to implement singleton-style accessors.
+
 ## Command Definition
-- CLI entry: [index.js](file:///Users/farhan.pahlevi/Documents/trae_projects/android-project-generator/index.js#L22-L42)
-- Options parsing and action: [index.js](file:///Users/farhan.pahlevi/Documents/trae_projects/android-project-generator/index.js#L43-L235)
+- CLI entry: [index.js](file:///Users/farhan.pahlevi/Documents/AuraLockIn/tools/android-generator/index.js)
+- Templates:
+  - App template: [templates/app/build.gradle.kts](file:///Users/farhan.pahlevi/Documents/AuraLockIn/tools/android-generator/templates/app/build.gradle.kts)
+  - Root gradle files: [templates/root](file:///Users/farhan.pahlevi/Documents/AuraLockIn/tools/android-generator/templates/root)
+  - BuildSrc: [templates/buildSrc](file:///Users/farhan.pahlevi/Documents/AuraLockIn/tools/android-generator/templates/buildSrc)

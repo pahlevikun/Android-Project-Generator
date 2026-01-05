@@ -31,6 +31,8 @@ program
   .option('--no-firebase', 'Skip Firebase dependencies')
   .option('--flavors <list>', 'Comma-separated product flavors', 'staging,production')
   .option('--flavor-dimension <name>', 'Flavor dimension name', 'environment')
+  .option('--disable-ribbon-flavors <list>', 'Flavors to disable EasyLauncher ribbon', 'production')
+  .option('--disable-ribbon-variants <list>', 'Variants to disable EasyLauncher ribbon (e.g., release,debug)', 'release')
   .action(async (packageName, appName, options) => {
     try {
       // Validation
@@ -75,6 +77,10 @@ program
       const templateRoot = path.join(__dirname, 'templates/root');
       const rootFiles = fs.readdirSync(templateRoot);
 
+      const flavors = (options.flavors || 'staging,production').split(',').map(s => s.trim()).filter(Boolean);
+      const flavorDimension = options.flavorDimension || 'environment';
+      const disableRibbonFlavors = (options.disableRibbonFlavors || 'production').split(',').map(s => s.trim()).filter(Boolean);
+      const disableRibbonVariants = (options.disableRibbonVariants || 'release').split(',').map(s => s.trim()).filter(Boolean);
       for (const file of rootFiles) {
         const srcPath = path.join(templateRoot, file);
         const destPath = path.join(projectDir, file);
@@ -82,7 +88,7 @@ program
         if (fs.lstatSync(srcPath).isDirectory()) {
           fs.copySync(srcPath, destPath);
         } else {
-          renderTemplate(srcPath, destPath, { packageName, appName, useFirebase });
+          renderTemplate(srcPath, destPath, { packageName, appName, useFirebase, flavors, flavorDimension, disableRibbonFlavors, disableRibbonVariants });
         }
       }
 
@@ -96,13 +102,13 @@ program
       fs.mkdirSync(appDir);
 
       // 4. App Build Gradle
-      const flavors = (options.flavors || 'staging,production').split(',').map(s => s.trim()).filter(Boolean);
-      const flavorDimension = options.flavorDimension || 'environment';
       renderTemplate(
         path.join(__dirname, 'templates/app/build.gradle.kts'),
         path.join(appDir, 'build.gradle.kts'),
-        { packageName, appName, useFirebase, flavors, flavorDimension }
+        { packageName, appName, useFirebase, flavors, flavorDimension, disableRibbonFlavors, disableRibbonVariants }
       );
+
+      
 
       // 5. Source Directory Structure
       const packagePath = packageName.replace(/\./g, '/');
@@ -111,6 +117,46 @@ program
 
       fs.ensureDirSync(srcMainJava);
       fs.ensureDirSync(srcMainRes);
+
+      // 4b. BuildSrc
+      const buildSrcDir = path.join(projectDir, 'buildSrc');
+      fs.ensureDirSync(buildSrcDir);
+      renderTemplate(
+        path.join(__dirname, 'templates/buildSrc/build.gradle.kts'),
+        path.join(buildSrcDir, 'build.gradle.kts'),
+        {}
+      );
+      renderTemplate(
+        path.join(__dirname, 'templates/buildSrc/settings.gradle.kts'),
+        path.join(buildSrcDir, 'settings.gradle.kts'),
+        {}
+      );
+      const buildSrcKotlinDir = path.join(buildSrcDir, 'src/main/kotlin', packagePath, 'plugin');
+      const buildSrcExtDir = path.join(buildSrcKotlinDir, 'extension');
+      const buildSrcPropDir = path.join(buildSrcKotlinDir, 'properties');
+      fs.ensureDirSync(buildSrcKotlinDir);
+      fs.ensureDirSync(buildSrcExtDir);
+      fs.ensureDirSync(buildSrcPropDir);
+      renderTemplate(
+        path.join(__dirname, 'templates/buildSrc/src/main/kotlin/SingletonHolder.kt.ejs'),
+        path.join(buildSrcKotlinDir, 'SingletonHolder.kt'),
+        { packageName }
+      );
+      renderTemplate(
+        path.join(__dirname, 'templates/buildSrc/src/main/kotlin/AppProperties.kt.ejs'),
+        path.join(buildSrcPropDir, 'AppProperties.kt'),
+        { packageName, appName }
+      );
+      renderTemplate(
+        path.join(__dirname, 'templates/buildSrc/src/main/kotlin/GitExtension.kt.ejs'),
+        path.join(buildSrcExtDir, 'GitExtension.kt'),
+        { packageName }
+      );
+      renderTemplate(
+        path.join(__dirname, 'templates/buildSrc/src/main/kotlin/ArtifactNameManipulator.kt.ejs'),
+        path.join(buildSrcExtDir, 'ArtifactNameManipulator.kt'),
+        { packageName }
+      );
 
       // 6. Create Clean Architecture Packages
       const layers = ['data', 'domain', 'presentation', 'di', 'core'];
@@ -160,6 +206,27 @@ program
         path.join(appDir, 'src/main/AndroidManifest.xml'),
         { packageName, appName }
       );
+
+      if (useFirebase) {
+        if (Array.isArray(flavors) && flavors.length > 0) {
+          for (const fl of flavors) {
+            const flavorDir = path.join(appDir, 'src', fl);
+            fs.ensureDirSync(flavorDir);
+            const fullPkg = fl === 'production' ? packageName : `${packageName}.${fl}`;
+            renderTemplate(
+              path.join(__dirname, 'templates/app/google-services.json.ejs'),
+              path.join(flavorDir, 'google-services.json'),
+              { packageName: fullPkg }
+            );
+          }
+        } else {
+          renderTemplate(
+            path.join(__dirname, 'templates/app/google-services.json.ejs'),
+            path.join(appDir, 'google-services.json'),
+            { packageName }
+          );
+        }
+      }
 
       // 9. Copy Resources (xml, mipmap if I had them, values)
       const resTemplates = path.join(__dirname, 'templates/app/src/main/res');
