@@ -1,11 +1,12 @@
 <% if (useFirebase) { %>import com.google.firebase.appdistribution.gradle.firebaseAppDistribution<% } %>
 import <%= packageName %>.plugin.properties.AppProperties
 import <%= packageName %>.plugin.extension.ArtifactNameManipulator
+import <%= packageName %>.plugin.extension.BuildTaskRegistry
 import com.project.starter.easylauncher.filter.ChromeLikeFilter
 import com.project.starter.easylauncher.filter.ColorRibbonFilter
 
 plugins {
-    alias(libs.plugins.android.application)
+    id("com.android.application")
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
@@ -19,7 +20,6 @@ plugins {
 }
 
 val appProperties = AppProperties.getInstance(project)
-val artifactNameManipulator = ArtifactNameManipulator(project)
 
 android {
     namespace = appProperties.applicationId
@@ -150,18 +150,8 @@ android {
 }
 
 android {
-    applicationVariants.configureEach {
-        val variantName = this.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-        tasks.register("buildArtifact${variantName}") {
-            dependsOn("clean")
-            dependsOn("assemble${variantName}")
-            dependsOn("bundle${variantName}")
-        }
-        tasks.register("distribute${variantName}") {
-            dependsOn("appDistributionUpload${variantName}")
-        }
-        artifactNameManipulator.apply(this)
-    }
+    applicationVariants.all(ArtifactNameManipulator(project))
+    applicationVariants.all(BuildTaskRegistry(project))
 }
 
 dependencies {

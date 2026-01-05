@@ -155,6 +155,11 @@ program
       renderTemplate(
         path.join(__dirname, 'templates/buildSrc/src/main/kotlin/ArtifactNameManipulator.kt.ejs'),
         path.join(buildSrcExtDir, 'ArtifactNameManipulator.kt'),
+        { packageName, appName }
+      );
+      renderTemplate(
+        path.join(__dirname, 'templates/buildSrc/src/main/kotlin/BuildTaskRegistry.kt.ejs'),
+        path.join(buildSrcExtDir, 'BuildTaskRegistry.kt'),
         { packageName }
       );
 

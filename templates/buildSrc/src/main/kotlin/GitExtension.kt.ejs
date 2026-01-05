@@ -1,18 +1,31 @@
 package <%= packageName %>.plugin.extension
 
 import org.gradle.api.Project
+import java.io.ByteArrayOutputStream
+import java.nio.charset.Charset
 
 object GitExtension {
-    fun shortCommit(project: Project): String {
-        return run("git rev-parse --short HEAD", project)
+    fun getTimestamp(): String {
+        return System.currentTimeMillis().toString()
     }
-    private fun run(cmd: String, project: Project): String {
+
+    fun getGitHash(project: Project): String {
+        return runCommand("git rev-parse --short HEAD", project)
+    }
+
+    private fun runCommand(command: String, project: Project): String {
         return try {
-            val parts = cmd.split(" ")
-            val proc = ProcessBuilder(parts).directory(project.projectDir).start()
-            proc.inputStream.bufferedReader().readText().trim()
+            val parts = command.split("\\s".toRegex())
+            val process = ProcessBuilder(parts)
+                .directory(project.projectDir)
+                .redirectOutput(ProcessBuilder.Redirect.PIPE)
+                .redirectError(ProcessBuilder.Redirect.PIPE)
+                .start()
+
+            process.waitFor()
+            process.inputStream.bufferedReader().readText().trim()
         } catch (e: Exception) {
-            ""
+            "unknown"
         }
     }
 }

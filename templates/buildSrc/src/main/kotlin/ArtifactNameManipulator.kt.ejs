@@ -1,8 +1,47 @@
 package <%= packageName %>.plugin.extension
 
+import com.android.build.gradle.api.ApplicationVariant
+import com.android.build.gradle.api.BaseVariantOutput
+import com.android.build.gradle.api.ApkVariantOutput
+import org.gradle.api.Action
 import org.gradle.api.Project
 
-class ArtifactNameManipulator(private val project: Project) {
-    fun apply(variant: Any) {
+class ArtifactNameManipulator(private val project: Project) : Action<ApplicationVariant> {
+    override fun execute(variant: ApplicationVariant) {
+        val timestamp = GitExtension.getTimestamp()
+        val gitHash = GitExtension.getGitHash(project)
+        // Use safe call for versionName as it might be null in some configurations
+        val versionName = variant.versionName ?: "1.0"
+        val baseName = "<%= appName.toLowerCase() %>_${variant.name}_${versionName}_${timestamp}_${gitHash}"
+        
+        variant.outputs.all(object : Action<BaseVariantOutput> {
+            override fun execute(output: BaseVariantOutput) {
+                if (output is ApkVariantOutput) {
+                    output.outputFileName = "${baseName}.apk"
+                }
+            }
+        })
+
+        val variantName = variant.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        val bundleTaskName = "bundle$variantName"
+        try {
+            project.tasks.named(bundleTaskName) {
+                doLast {
+                    // Access output directory directly as task outputs might not be populated as expected in doLast for some AGP versions
+                    val outputDir = project.layout.buildDirectory.dir("outputs/bundle/${variant.name}").get().asFile
+                    if (outputDir.exists()) {
+                        outputDir.walkTopDown().forEach { file ->
+                            if (file.extension == "aab" && !file.name.contains(baseName)) { // Avoid renaming already renamed file if multiple runs
+                                val newFile = file.parentFile.resolve("${baseName}.aab")
+                                file.copyTo(newFile, overwrite = true)
+                                println("Generated renamed AAB: ${newFile.absolutePath}")
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // Ignore if task not found
+        }
     }
 }

@@ -1,0 +1,21 @@
+package <%= packageName %>.plugin.extension
+
+import com.android.build.gradle.api.ApplicationVariant
+import org.gradle.api.Action
+import org.gradle.api.Project
+
+class BuildTaskRegistry(private val project: Project) : Action<ApplicationVariant> {
+    override fun execute(variant: ApplicationVariant) {
+        val variantName = variant.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        
+        project.tasks.register("buildArtifact${variantName}") {
+            dependsOn("clean")
+            dependsOn("assemble${variantName}")
+            dependsOn("bundle${variantName}")
+        }
+        
+        project.tasks.register("distribute${variantName}") {
+            dependsOn("appDistributionUpload${variantName}")
+        }
+    }
+}
